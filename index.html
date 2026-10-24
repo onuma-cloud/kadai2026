@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>かんたんジャンプゲーム</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, "Yu Gothic", sans-serif; background: #eaf7ff; color: #18345d; text-align: center; }
+  header { padding: 18px 12px 10px; }
+  h1 { margin: 0 0 6px; font-size: clamp(1.5rem, 4vw, 2.4rem); }
+  p { margin: 4px 0 12px; }
+  .hud { display:flex; justify-content:space-between; gap:12px; max-width:900px; margin:0 auto 10px; padding:0 14px; font-weight:700; font-size:1.1rem; }
+  .pill { background:white; border-radius:12px; padding:8px 14px; box-shadow:0 2px 8px #18345d15; }
+  #game { display:block; width:min(900px, 96vw); height:auto; margin:0 auto; background:#79d4fa; border:3px solid #fff; border-radius:14px; box-shadow:0 8px 24px #24508020; touch-action: manipulation; }
+  .controls { padding:14px; }
+  button { border:0; border-radius:12px; padding:12px 20px; margin:4px; background:#1769aa; color:white; font-size:1rem; font-weight:700; cursor:pointer; }
+  button:hover { background:#0e4d83; }
+  #jump { background:#159447; min-width:130px; }
+  #message { min-height:1.5em; font-weight:700; }
+  .hint { font-size:.9rem; color:#3c5879; }
+</style>
+</head>
+<body>
+<header>
+  <h1>かんたんジャンプゲーム</h1>
+  <p>障害物をジャンプでよけて、コインを集めよう！</p>
+</header>
+<div class="hud">
+  <div class="pill">スコア：<span id="score">0</span></div>
+  <div class="pill">残りライフ：<span id="lives">❤️❤️❤️</span></div>
+</div>
+<canvas id="game" width="900" height="420" aria-label="ジャンプゲーム"></canvas>
+<div class="controls">
+  <button id="start">スタート / もう一度</button>
+  <button id="jump">ジャンプ ⤴</button>
+  <div id="message">「スタート」を押してゲーム開始！</div>
+  <div class="hint">操作：スペースキー・↑キー・画面の「ジャンプ」ボタン（スマートフォン対応）</div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const message = document.getElementById('message');
+  const groundY = 345;
+  let player, obstacles, coins, score, lives, running, ended, frame, speed, lastTime;
+
+  function reset() {
+    player = { x: 100, y: groundY - 42, w: 34, h: 42, vy: 0, onGround: true };
+    obstacles = [];
+    coins = [];
+    score = 0; lives = 3; frame = 0; speed = 4; running = true; ended = false;
+    lastTime = 0;
+    scoreEl.textContent = score;
+    livesEl.textContent = '❤️❤️❤️';
+    message.textContent = 'ジャンプして障害物をよけよう！';
+    requestAnimationFrame(loop);
+  }
+
+  function jump() {
+    if (!running) return;
+    if (player.onGround) {
+      player.vy = -12.5;
+      player.onGround = false;
+    }
+  }
+  document.getElementById('start').addEventListener('click', reset);
+  document.getElementById('jump').addEventListener('click', jump);
+  window.addEventListener('keydown', e => {
+    if (['Space', 'ArrowUp'].includes(e.code)) { e.preventDefault(); jump(); }
+    if (e.code === 'Enter' && !running) reset();
+  });
+
+  function drawBackground() {
+    const sky = ctx.createLinearGradient(0,0,0,420);
+    sky.addColorStop(0,'#73d1fa'); sky.addColorStop(1,'#d5f5ff');
+    ctx.fillStyle = sky; ctx.fillRect(0,0,900,420);
+    // clouds
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    [[130,70],[410,105],[730,58]].forEach(([x,y]) => {
+      ctx.beginPath(); ctx.arc(x,y,20,0,Math.PI*2); ctx.arc(x+22,y-9,26,0,Math.PI*2);
+      ctx.arc(x+47,y,19,0,Math.PI*2); ctx.fill();
+    });
+    // hills
+    ctx.fillStyle = '#62bda4';
+    ctx.beginPath(); ctx.moveTo(0,groundY);
+    for (let x=0;x<=900;x+=10) ctx.lineTo(x, 270 + Math.sin((x+frame*0.3)/70)*25 + Math.sin(x/130)*18);
+    ctx.lineTo(900,groundY); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3a9e83';
+    ctx.beginPath(); ctx.moveTo(0,groundY);
+    for (let x=0;x<=900;x+=10) ctx.lineTo(x, 310 + Math.sin((x+frame*0.45)/48)*13);
+    ctx.lineTo(900,groundY); ctx.closePath(); ctx.fill();
+    // ground
+    ctx.fillStyle = '#8b542e'; ctx.fillRect(0,groundY,900,75);
+    ctx.fillStyle = '#69c93d'; ctx.fillRect(0,groundY,900,12);
+    ctx.fillStyle = '#3e9b2b'; for(let x=0;x<900;x+=22) ctx.fillRect(x,groundY+8,11,6);
+    ctx.fillStyle = '#a96a3d';
+    for(let x=10;x<900;x+=42) { ctx.fillRect(x,groundY+27,12,9); ctx.fillRect(x+18,groundY+51,8,7); }
+  }
+
+  function drawPlayer() {
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(player.x+17,groundY+2,22,5,0,0,Math.PI*2); ctx.fill();
+    // legs
+    ctx.strokeStyle='#18345d'; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(player.x+11,player.y+31); ctx.lineTo(player.x+7,player.y+40);
+    ctx.moveTo(player.x+24,player.y+31); ctx.lineTo(player.x+29,player.y+40); ctx.stroke();
+    // body
+    ctx.fillStyle='#1976d2'; ctx.fillRect(player.x+5,player.y+17,25,19);
+    // head and hair
+    ctx.fillStyle='#ffd3a0'; ctx.beginPath(); ctx.arc(player.x+18,player.y+12,13,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#513b2d'; ctx.beginPath(); ctx.arc(player.x+17,player.y+7,14,Math.PI,Math.PI*2); ctx.lineTo(player.x+30,player.y+13); ctx.lineTo(player.x+5,player.y+13); ctx.fill();
+    ctx.fillStyle='#18345d'; ctx.beginPath(); ctx.arc(player.x+22,player.y+12,1.8,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#9d4b35'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(player.x+22,player.y+16,4,0.1,1.5); ctx.stroke();
+  }
+
+  function addItems() {
+    if (frame % 95 === 0) obstacles.push({x:930,w:24+Math.random()*18,h:28+Math.random()*25});
+    if (frame % 70 === 25) coins.push({x:930,y:groundY-65-Math.random()*75,r:10,taken:false});
+  }
+
+  function drawItems() {
+    obstacles.forEach(o => {
+      ctx.fillStyle='#df5a3f'; ctx.fillRect(o.x,groundY-o.h,o.w,o.h);
+      ctx.fillStyle='#f58b52'; ctx.fillRect(o.x+4,groundY-o.h+5,Math.max(5,o.w-8),6);
+      ctx.fillStyle='#8b3428'; ctx.fillRect(o.x,groundY-5,o.w,5);
+    });
+    coins.forEach(c => {
+      if(c.taken) return;
+      ctx.fillStyle='#ffbf24'; ctx.strokeStyle='#b87900'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#fff08a'; ctx.fillRect(c.x-2,c.y-6,4,12);
+    });
+  }
+
+  function loop(time) {
+    if (!running) { drawBackground(); drawItems(); drawPlayer(); drawEndOverlay(); return; }
+    const dt = lastTime ? Math.min((time-lastTime)/16.67, 2) : 1;
+    lastTime = time; frame += dt; speed = Math.min(7,4+score/120);
+    drawBackground(); addItems();
+    player.vy += 0.62*dt; player.y += player.vy*dt;
+    if (player.y + player.h >= groundY) { player.y=groundY-player.h; player.vy=0; player.onGround=true; }
+    obstacles.forEach(o => o.x -= speed*dt);
+    coins.forEach(c => c.x -= speed*dt);
+    // obstacle collision
+    obstacles.forEach(o => {
+      if (!o.hit && player.x+player.w-5 > o.x && player.x+5 < o.x+o.w &&
+          player.y+player.h > groundY-o.h) {
+        o.hit=true; lives--; livesEl.textContent='❤️'.repeat(lives)+'🤍'.repeat(3-lives);
+        message.textContent='ぶつかった！ あと '+lives+' 回';
+        if(lives<=0){ running=false; ended=true; message.textContent='ゲームオーバー！「もう一度」で再挑戦'; }
+      }
+    });
+    coins.forEach(c => {
+      if(!c.taken && Math.hypot((player.x+17)-c.x,(player.y+20)-c.y)<25) {
+        c.taken=true; score+=10; scoreEl.textContent=score;
+      }
+    });
+    obstacles = obstacles.filter(o=>o.x>-60);
+    coins = coins.filter(c=>c.x>-30 && !c.taken);
+    if(frame%60<dt) { score++; scoreEl.textContent=score; }
+    drawItems(); drawPlayer();
+    if(running) requestAnimationFrame(loop); else { drawEndOverlay(); }
+  }
+
+  function drawEndOverlay() {
+    ctx.fillStyle='rgba(12,35,62,.68)'; ctx.fillRect(0,0,900,420);
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.font='bold 38px sans-serif';
+    ctx.fillText(ended?'ゲームオーバー':'ゲーム終了',450,190);
+    ctx.font='bold 23px sans-serif'; ctx.fillText('スコア：'+score,450,235);
+    ctx.font='18px sans-serif'; ctx.fillText('「スタート / もう一度」を押して再挑戦',450,275);
+  }
+  // initial scene
+  player={x:100,y:groundY-42,w:34,h:42,vy:0,onGround:true};
+  obstacles=[]; coins=[]; score=0; lives=3; frame=0; speed=4; running=false; ended=false;
+  drawBackground(); drawPlayer();
+})();
+</script>
+</body>
+</html>
