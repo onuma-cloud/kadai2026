@@ -12,19 +12,6 @@
     <a-scene>
       <!-- ① 背景を360度画像にする -->
       <a-sky src="xxxxx.jpg" rotation="0 -100 0"></a-sky>
-
-      <!-- ② 3Dモデルを配置する -->
-      <a-entity 
-        gltf-model="xxxxx.glb"
-        position="0 -1.5 -2"
-        scale="7 7 7"
-        rotation="0 90 0">
-      </a-entity>
-
-      <!-- ③ 光源 -->
-      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
-      <a-entity light="type: directional; intensity: 0.6" position="1 1 1"></a-entity>
-
       <!-- ④ カメラ操作（マウス・スマホで見回せる） -->
       <a-entity camera look-controls></a-entity>
     </a-scene>
