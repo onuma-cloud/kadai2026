@@ -1,19 +1,55 @@
+
 <!DOCTYPE html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8">
-    <title>●3000 〇〇〇〇〇〇〇●</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; }
-    </style>
-  </head>
-  <body>
-    <a-scene>
-      <!-- ① 背景を360度画像にする -->
-      <a-sky src="xxxxx.jpg" rotation="0 -100 0"></a-sky>
-      <!-- ④ カメラ操作（マウス・スマホで見回せる） -->
-      <a-entity camera look-controls></a-entity>
-    </a-scene>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <title>●3000 〇〇〇〇〇〇〇●</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <a-scene>
+    <!-- 360度画像 -->
+    <a-sky src="xxxxx.jpg" rotation="0 -100 0"></a-sky>
+
+    <!-- カメラ操作 -->
+    <a-entity
+      id="camera"
+      camera="fov: 80; minFov: 30; maxFov: 100"
+      look-controls
+      zoom-wheel>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    // マウスホイールによる拡大・縮小
+    AFRAME.registerComponent('zoom-wheel', {
+      init: function () {
+        const camera = this.el.getAttribute('camera');
+
+        this.el.sceneEl.addEventListener('wheel', (event) => {
+          event.preventDefault();
+
+          let fov = this.el.getAttribute('camera').fov;
+
+          if (event.deltaY < 0) {
+            fov -= 5; // 拡大
+          } else {
+            fov += 5; // 縮小
+          }
+
+          fov = Math.max(30, Math.min(100, fov));
+
+          this.el.setAttribute('camera', 'fov', fov);
+        }, { passive: false });
+      }
+    });
+  </script>
+</body>
 </html>
